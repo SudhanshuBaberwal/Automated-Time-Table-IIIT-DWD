@@ -7,6 +7,16 @@ import argparse
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill, Border, Side
 
+# ================= PREVIEW CACHE =================
+PREVIEW_CACHE = {}
+
+def cache_preview(label, tt_df):
+    """
+    Store timetable dataframe for website preview
+    Does NOT affect Excel generation
+    """
+    PREVIEW_CACHE[label] = tt_df.copy()
+
 random.seed(42)
 
 days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
@@ -770,6 +780,7 @@ def generate(courses, ws, label, seed, elective_sync, room_prefix=None, elective
     ws.append(["Day"] + slot_keys)
     for d in days:
         ws.append([d] + [tt.at[d, s] for s in slot_keys])
+    cache_preview(label, tt)     
     ws.append([""])
     return (priority_placed + regular_placed + combined_core), failed
 def split(c):
@@ -925,3 +936,188 @@ if __name__ == "__main__":
     name = f"Balanced_Timetable_latest.xlsx"
     wb.save(name)
     print("OK: Evenly balanced timetable saved in", name)
+def generate_timetable(seed=42, hide_c004=True):
+    import random
+    from openpyxl import Workbook
+
+    random.seed(seed)
+
+    # 🔥 very important
+    PREVIEW_CACHE.clear()
+
+    wb = Workbook()
+
+    elective_room_map = {}
+    global_room_busy = {d: {} for d in days}
+
+    sync_sem1 = {}
+    sync_sem3 = {}
+    sync_sem5 = {}
+    sync_sem7 = {}
+
+    # =====================================================
+    # ===================== 1ST SEM ======================
+    # =====================================================
+
+    # ---- CSE-A I ----
+    ws = wb.active
+    ws.title = "CSE-A I"
+
+    cAf, cAs = split(coursesAI)
+    generate(cAf, ws, "CSE-A I First Half", seed+1, sync_sem1,
+             room_prefix="C1", elective_room_map=elective_room_map,
+             room_busy_global=global_room_busy, hide_c004=True)
+
+    generate(cAs, ws, "CSE-A I Second Half", seed+2, sync_sem1,
+             room_prefix="C1", elective_room_map=elective_room_map,
+             room_busy_global=global_room_busy, hide_c004=True)
+
+    # ---- CSE-B I ----
+    ws = wb.create_sheet("CSE-B I")
+    cBf, cBs = split(coursesBI)
+
+    generate(cBf, ws, "CSE-B I First Half", seed+3, sync_sem1,
+             room_prefix="C1", elective_room_map=elective_room_map,
+             room_busy_global=global_room_busy, hide_c004=True)
+
+    generate(cBs, ws, "CSE-B I Second Half", seed+4, sync_sem1,
+             room_prefix="C1", elective_room_map=elective_room_map,
+             room_busy_global=global_room_busy, hide_c004=True)
+
+    # ---- ECE I ----
+    ws = wb.create_sheet("ECE I")
+    e1f, e1s = split(coursesECE_I)
+
+    generate(e1f, ws, "ECE I First Half", seed+5, sync_sem1,
+             room_prefix="C4", elective_room_map=elective_room_map,
+             room_busy_global=global_room_busy)
+
+    generate(e1s, ws, "ECE I Second Half", seed+6, sync_sem1,
+             room_prefix="C4", elective_room_map=elective_room_map,
+             room_busy_global=global_room_busy)
+
+    # ---- DSAI I ----
+    ws = wb.create_sheet("DSAI I")
+    d1f, d1s = split(coursesDSAI_I)
+
+    generate(d1f, ws, "DSAI I First Half", seed+7, sync_sem1,
+             room_prefix="C4", elective_room_map=elective_room_map,
+             room_busy_global=global_room_busy)
+
+    generate(d1s, ws, "DSAI I Second Half", seed+8, sync_sem1,
+             room_prefix="C4", elective_room_map=elective_room_map,
+             room_busy_global=global_room_busy)
+
+    # =====================================================
+    # ===================== 3RD SEM ======================
+    # =====================================================
+
+    # ---- CSE-A III ----
+    ws = wb.create_sheet("CSE-A III")
+    c3Af, c3As = split(coursesA)
+
+    generate(c3Af, ws, "CSE-A III First Half", seed+9, sync_sem3,
+             room_prefix="C2", elective_room_map=elective_room_map,
+             room_busy_global=global_room_busy)
+
+    generate(c3As, ws, "CSE-A III Second Half", seed+10, sync_sem3,
+             room_prefix="C2", elective_room_map=elective_room_map,
+             room_busy_global=global_room_busy)
+
+    # ---- CSE-B III ----
+    ws = wb.create_sheet("CSE-B III")
+    c3Bf, c3Bs = split(coursesB)
+
+    generate(c3Bf, ws, "CSE-B III First Half", seed+11, sync_sem3,
+             room_prefix="C2", elective_room_map=elective_room_map,
+             room_busy_global=global_room_busy)
+
+    generate(c3Bs, ws, "CSE-B III Second Half", seed+12, sync_sem3,
+             room_prefix="C2", elective_room_map=elective_room_map,
+             room_busy_global=global_room_busy)
+
+    # ---- ECE III ----
+    ws = wb.create_sheet("ECE III")
+    e3f, e3s = split(coursesECE)
+
+    generate(e3f, ws, "ECE III First Half", seed+13, sync_sem3,
+             room_prefix="C4", elective_room_map=elective_room_map,
+             room_busy_global=global_room_busy)
+
+    generate(e3s, ws, "ECE III Second Half", seed+14, sync_sem3,
+             room_prefix="C4", elective_room_map=elective_room_map,
+             room_busy_global=global_room_busy)
+
+    # ---- DSAI III ----
+    ws = wb.create_sheet("DSAI III")
+    d3f, d3s = split(coursesDSAI)
+
+    generate(d3f, ws, "DSAI III First Half", seed+15, sync_sem3,
+             room_prefix="C4", elective_room_map=elective_room_map,
+             room_busy_global=global_room_busy)
+
+    generate(d3s, ws, "DSAI III Second Half", seed+16, sync_sem3,
+             room_prefix="C4", elective_room_map=elective_room_map,
+             room_busy_global=global_room_busy)
+
+    # =====================================================
+    # ===================== 5TH SEM ======================
+    # =====================================================
+
+    # ---- CSE V ----
+    ws = wb.create_sheet("CSE V")
+    c5f, c5s = split(coursesV)
+
+    generate(c5f, ws, "CSE V First Half", seed+17, sync_sem5,
+             room_prefix="C3", elective_room_map=elective_room_map,
+             room_busy_global=global_room_busy)
+
+    generate(c5s, ws, "CSE V Second Half", seed+18, sync_sem5,
+             room_prefix="C3", elective_room_map=elective_room_map,
+             room_busy_global=global_room_busy)
+
+    # ---- ECE V ----
+    ws = wb.create_sheet("ECE V")
+    e5f, e5s = split(coursesECE_V)
+
+    generate(e5f, ws, "ECE V First Half", seed+19, sync_sem5,
+             room_prefix="C4", elective_room_map=elective_room_map,
+             room_busy_global=global_room_busy)
+
+    generate(e5s, ws, "ECE V Second Half", seed+20, sync_sem5,
+             room_prefix="C4", elective_room_map=elective_room_map,
+             room_busy_global=global_room_busy)
+
+    # ---- DSAI V ----
+    ws = wb.create_sheet("DSAI V")
+    d5f, d5s = split(coursesDSAI_V)
+
+    generate(d5f, ws, "DSAI V First Half", seed+21, sync_sem5,
+             room_prefix="C4", elective_room_map=elective_room_map,
+             room_busy_global=global_room_busy)
+
+    generate(d5s, ws, "DSAI V Second Half", seed+22, sync_sem5,
+             room_prefix="C4", elective_room_map=elective_room_map,
+             room_busy_global=global_room_busy)
+
+    # =====================================================
+    # ===================== 7TH SEM ======================
+    # =====================================================
+
+    # 🔥 ALL BRANCHES TOGETHER
+    ws = wb.create_sheet("7TH SEM (ALL)")
+
+    s7f, s7s = split(coursesVII)
+
+    generate(s7f, ws, "7TH SEM First Half", seed+23, sync_sem7,
+             room_prefix="C3", elective_room_map=elective_room_map,
+             room_busy_global=global_room_busy)
+
+    generate(s7s, ws, "7TH SEM Second Half", seed+24, sync_sem7,
+             room_prefix="C3", elective_room_map=elective_room_map,
+             room_busy_global=global_room_busy)
+
+    # =====================================================
+    filename = "Balanced_Timetable_latest.xlsx"
+    wb.save(filename)
+    return filename
