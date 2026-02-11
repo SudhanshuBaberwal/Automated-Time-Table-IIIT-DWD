@@ -1,253 +1,284 @@
 import streamlit as st
-import timetable
+import pandas as pd
+import timetable  # Your existing backend module
 
-PREVIEW_CACHE = timetable.PREVIEW_CACHE
-generate_timetable = timetable.generate_timetable
-
-
-# ---------------- Page Config ----------------
+# ---------------- CONFIGURATION ----------------
 st.set_page_config(
-    page_title="IIIT Dharwad – Academic Timetable",
-    page_icon="🎓",
+    page_title="IIIT Dharwad Scheduler",
+    page_icon="📅",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
 
-# ---------------- Global Professional Theme CSS ----------------
+# ---------------- STATE MANAGEMENT ----------------
+# Use session state to keep the timetable visible after generation
+if 'timetable_generated' not in st.session_state:
+    st.session_state.timetable_generated = False
+if 'generated_filename' not in st.session_state:
+    st.session_state.generated_filename = ""
+
+PREVIEW_CACHE = timetable.PREVIEW_CACHE
+generate_timetable = timetable.generate_timetable
+
+# ---------------- CUSTOM CSS (PROFESSIONAL THEME) ----------------
 st.markdown("""
 <style>
-    /* 1. Main Application Background */
+    /* 1. Global Reset & Fonts */
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
+    
     .stApp {
-        background-color: #0f1116;
-        color: #e6edf3;
-        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        background-color: #0e1117; /* GitHub Dark Dimmed */
+        font-family: 'Inter', sans-serif;
     }
 
-    /* 2. Header Styling */
-    h1 {
-        font-weight: 800;
-        letter-spacing: -0.02em;
-        background: linear-gradient(90deg, #60a5fa, #a78bfa);
+    /* 2. Header Gradient */
+    .main-header {
+        background: linear-gradient(90deg, #4f46e5, #ec4899);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
-        margin-bottom: 0.2rem;
+        font-weight: 800;
+        font-size: 3rem;
+        margin-bottom: 0;
     }
-    .caption-text {
-        color: #8b949e;
-        font-size: 1.1rem;
-        font-weight: 400;
+    
+    .sub-header {
+        color: #94a3b8;
+        font-size: 1.2rem;
         margin-bottom: 2rem;
     }
 
-    /* 3. Button Styling (Primary CTA) */
-    .stButton > button {
-        width: 100%;
-        background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
-        color: white;
-        border: 1px solid rgba(255,255,255,0.1);
-        padding: 0.75rem 1.5rem;
-        font-weight: 600;
-        border-radius: 8px;
-        transition: all 0.2s ease;
-        box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.2);
-    }
-    .stButton > button:hover {
-        transform: translateY(-1px);
-        box-shadow: 0 10px 15px -3px rgba(37, 99, 235, 0.3);
-        border-color: rgba(255,255,255,0.2);
-    }
-
-    /* 4. Containers / Cards for Timetables */
-    .timetable-card {
+    /* 3. Card Containers for Tables */
+    .timetable-container {
         background-color: #161b22;
         border: 1px solid #30363d;
         border-radius: 12px;
         padding: 20px;
         margin-bottom: 30px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
     }
-
-    /* 5. Subheaders */
-    h3 {
-        color: #e6edf3;
+    
+    .branch-title {
+        color: #e2e8f0;
+        font-size: 1.4rem;
         font-weight: 600;
-        border-left: 4px solid #3b82f6;
-        padding-left: 12px;
-        margin-top: 10px;
-        margin-bottom: 20px;
+        margin-bottom: 15px;
+        display: flex;
+        align-items: center;
+    }
+    .branch-title::before {
+        content: '';
+        display: inline-block;
+        width: 6px;
+        height: 24px;
+        background: #3b82f6;
+        margin-right: 12px;
+        border-radius: 4px;
     }
 
-    /* 6. Success/Info Messages */
-    .stAlert {
-        background-color: rgba(56, 189, 248, 0.1);
-        border: 1px solid rgba(56, 189, 248, 0.2);
-        color: #38bdf8;
+    /* 4. Custom Button Styling */
+    div.stButton > button {
+        background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+        color: white;
+        border: none;
+        padding: 0.75rem 2rem;
+        border-radius: 8px;
+        font-weight: 600;
+        letter-spacing: 0.5px;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.4);
+        width: 100%;
+    }
+    div.stButton > button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 10px 15px -3px rgba(37, 99, 235, 0.6);
+        background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+    }
+
+    /* 5. Download Button Variant */
+    div[data-testid="stDownloadButton"] > button {
+        background: #1f2937;
+        border: 1px solid #374151;
+        color: #e5e7eb;
+    }
+    div[data-testid="stDownloadButton"] > button:hover {
+        background: #374151;
+        border-color: #4b5563;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# ---------------- Header Section ----------------
-col_header, col_empty = st.columns([2, 1])
-with col_header:
-    st.title("🎓 IIIT Dharwad")
-    st.markdown("<p class='caption-text'>Automated Academic Scheduler • All Branches & Semesters</p>", unsafe_allow_html=True)
-
-# ---------------- HTML Timetable Renderer ----------------
-def render_merged_timetable(df):
+# ---------------- HTML RENDERER FUNCTION ----------------
+def render_styled_timetable(df):
+    """
+    Converts a pandas DataFrame into a beautiful HTML Table with colspan support.
+    """
     slots = list(df.columns)
     days = list(df.index)
 
-    # Note: Logic remains untouched, but CSS inside HTML is upgraded for the "Professional" look
+    # Internal CSS for the table itself
     html = """
     <style>
-    table.timetable {
-        border-collapse: separate; 
-        border-spacing: 0;
-        width: 100%;
-        margin-bottom: 10px;
-        font-family: 'Segoe UI', sans-serif;
-        font-size: 13px;
-        border: 1px solid #30363d;
-        border-radius: 8px;
-        overflow: hidden;
-    }
-    table.timetable th, table.timetable td {
-        border-bottom: 1px solid #30363d;
-        border-right: 1px solid #30363d;
-        padding: 12px 8px;
-        text-align: center;
-        color: #c9d1d9;
-    }
-    
-    /* Header Row */
-    table.timetable th {
-        background-color: #21262d;
-        color: #ffffff;
-        font-weight: 600;
-        text-transform: uppercase;
-        font-size: 11px;
-        letter-spacing: 0.05em;
-    }
-    
-    /* First Column (Days) */
-    table.timetable tr th:first-child {
-        background-color: #1f2937;
-        font-weight: 700;
-        color: #60a5fa; /* Blue tint */
-        border-right: 2px solid #30363d;
-    }
-
-    /* Cells */
-    table.timetable td {
-        background-color: #0d1117;
-    }
-    table.timetable td b {
-        color: #e6edf3;
-        font-weight: 500;
-    }
-    
-    /* Hover Effect */
-    table.timetable tr:hover td {
-        background-color: #161b22;
-    }
+        table.styled-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 4px; /* Space between cells */
+            font-size: 13px;
+        }
+        .styled-table th {
+            text-align: center;
+            padding: 12px;
+            color: #94a3b8;
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.75rem;
+            letter-spacing: 0.05em;
+        }
+        .styled-table td {
+            padding: 0; /* Padding handled by inner div */
+        }
+        .cell-content {
+            border-radius: 6px;
+            padding: 10px 5px;
+            text-align: center;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+            font-weight: 500;
+            transition: transform 0.1s;
+        }
+        .cell-content:hover {
+            transform: scale(1.02);
+            z-index: 10;
+        }
+        /* Color Coding */
+        .day-header { background: #1f2937; color: #f3f4f6; font-weight: 700; border-radius: 6px;}
+        .slot-class { background: #1e3a8a; border: 1px solid #1d4ed8; color: #dbeafe; } /* Blue for classes */
+        .slot-lab { background: #581c87; border: 1px solid #7e22ce; color: #f3e8ff; } /* Purple for labs */
+        .slot-break { background: #2d333b; border: 1px solid #444c56; color: #768390; font-style: italic; } /* Gray for breaks */
+        .slot-empty { background: transparent; }
     </style>
+    <table class="styled-table">
     """
 
-    html += "<div class='timetable-card'>" # Wrap in card div
-    html += "<table class='timetable'>"
-
-    # Header
-    html += "<tr><th>Day</th>"
+    # Header Row
+    html += "<thead><tr><th></th>" # Empty corner
     for s in slots:
         html += f"<th>{s}</th>"
-    html += "</tr>"
+    html += "</tr></thead><tbody>"
 
-    # Rows
+    # Data Rows
     for day in days:
-        html += f"<tr><th>{day}</th>"
+        html += f"<tr><td class='day-header'><div class='cell-content day-header'>{day[:3]}</div></td>"
+        
         row = df.loc[day].fillna("").tolist()
-
         c = 0
         while c < len(row):
-            val = row[c]
-
-            if val == "":
-                html += "<td></td>"
-                c += 1
-                continue
-
+            val = str(row[c])
+            
+            # Determine Spanning (Merged Cells)
             span = 1
-            while c + span < len(row) and row[c + span] == val:
-                span += 1
-
-            # Logic Check: Highlight 'Break' or 'Lunch' differently if needed
-            # (Keeping logic strictly visual here)
-            bg_style = ""
-            if "Break" in str(val) or "Lunch" in str(val):
-                bg_style = "style='background-color: #161b22; color: #484f58; font-style:italic;'"
+            if val != "":
+                while c + span < len(row) and str(row[c + span]) == val:
+                    span += 1
+            
+            # Determine CSS Class based on content
+            css_class = "slot-class"
+            if val == "":
+                css_class = "slot-empty"
+            elif "Lunch" in val or "Break" in val:
+                css_class = "slot-break"
+            elif "Lab" in val or "CS" in val: # Example heuristic
+                css_class = "slot-lab"
+            
+            # Render Cell
+            if val == "":
+                html += f"<td></td>"
             else:
-                bg_style = "style='background-color: #1f2937; border: 1px solid #30363d; border-radius: 4px;'"
-
-            # Use div inside td for cell styling
-            html += f"<td colspan='{span}'><div {bg_style} style='padding:6px; border-radius:4px;'><b>{val}</b></div></td>"
+                html += f"<td colspan='{span}'><div class='cell-content {css_class}'>{val}</div></td>"
+            
             c += span
-
+            
         html += "</tr>"
 
-    html += "</table>"
-    html += "</div>" # Close card div
+    html += "</tbody></table>"
     return html
 
+# ---------------- UI LAYOUT ----------------
 
-# ---------------- Generate Section ----------------
-
-# Centered Button Area
-c1, c2, c3 = st.columns([1, 2, 1])
-with c2:
-    generate_clicked = st.button("🚀 Generate New Timetable", use_container_width=True)
+# 1. Title Section
+col_logo, col_title = st.columns([1, 5])
+with col_title:
+    st.markdown('<h1 class="main-header">IIIT Dharwad</h1>', unsafe_allow_html=True)
+    st.markdown('<div class="sub-header">Academic Timetable Automation System</div>', unsafe_allow_html=True)
 
 st.divider()
 
-if generate_clicked:
+# 2. Controls Section
+c1, c2, c3 = st.columns([1, 2, 1])
+with c2:
+    if st.button("🚀 Generate New Schedule", use_container_width=True):
+        with st.spinner("Optimizing schedule..."):
+            # Clear cache and run logic
+            timetable.PREVIEW_CACHE.clear()
+            filename = generate_timetable(seed=42, hide_c004=True)
+            
+            # Update Session State
+            st.session_state.timetable_generated = True
+            st.session_state.generated_filename = filename
+            st.rerun()
 
-    # 🔥 LOGIC START (Unchanged)
-    PREVIEW_CACHE.clear()
-    filename = generate_timetable(seed=42, hide_c004=True)
-    # 🔥 LOGIC END
-
-    st.success(f"✅ Scheduling Complete. File generated: **{filename}**")
+# 3. Results Section
+if st.session_state.timetable_generated:
+    st.success(f"✅ Schedule generated successfully! File ready: {st.session_state.generated_filename}")
     
-    # 🔥 SHOW **ALL BRANCHES & ALL SEMESTERS**
-    if not PREVIEW_CACHE:
-        st.warning("⚠️ No timetable data found.")
+    # Download Button (Centered)
+    d1, d2, d3 = st.columns([2, 2, 2])
+    with d2:
+        try:
+            with open(st.session_state.generated_filename, "rb") as f:
+                st.download_button(
+                    label="📥 Download Excel File",
+                    data=f,
+                    file_name=st.session_state.generated_filename,
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    use_container_width=True
+                )
+        except FileNotFoundError:
+            st.error("File not found. Please regenerate.")
+
+    st.markdown("---")
+
+    # Render Timetables
+    if not timetable.PREVIEW_CACHE:
+         # Fallback if cache is empty but state is true (edge case)
+         st.warning("Please regenerate the timetable to view previews.")
     else:
-        labels = sorted(PREVIEW_CACHE.keys())  # clean order
-
-        # Display Loop
+        # Sort keys to keep semesters organized
+        labels = sorted(timetable.PREVIEW_CACHE.keys())
+        
         for label in labels:
-            st.markdown(f"### {label}")
-            df = PREVIEW_CACHE[label]
-            st.markdown(render_merged_timetable(df), unsafe_allow_html=True)
-
-    st.divider()
-
-    # Download Button Centered
-    dc1, dc2, dc3 = st.columns([1, 2, 1])
-    with dc2:
-        with open(filename, "rb") as f:
-            st.download_button(
-                label="⬇️ Download Official Excel Timetable",
-                data=f,
-                file_name=filename,
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                use_container_width=True
-            )
+            df = timetable.PREVIEW_CACHE[label]
+            
+            # Create a Card for each Semester/Branch
+            st.markdown(f"""
+            <div class="timetable-container">
+                <div class="branch-title">{label}</div>
+            """, unsafe_allow_html=True)
+            
+            # Inject the HTML Table
+            st.markdown(render_styled_timetable(df), unsafe_allow_html=True)
+            
+            # Close Card
+            st.markdown("</div>", unsafe_allow_html=True)
 
 else:
-    # Empty State / Landing View
+    # Empty State Hero
     st.markdown("""
-    <div style='text-align: center; padding: 40px; color: #6b7280;'>
-        <h2>Ready to Schedule?</h2>
-        <p>Click the <b>Generate</b> button above to run the algorithm and preview all semesters.</p>
+    <div style="text-align: center; padding: 50px 20px; color: #64748b;">
+        <h3 style="color: #94a3b8;">Ready to organize the semester?</h3>
+        <p>Click the <b>Generate</b> button above to run the allocation algorithm.</p>
     </div>
     """, unsafe_allow_html=True)
