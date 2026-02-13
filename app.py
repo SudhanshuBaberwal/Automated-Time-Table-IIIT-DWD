@@ -1,8 +1,7 @@
 import streamlit as st
 import pandas as pd
-import timetable  # Your existing backend module
+import timetable  
 
-# ---------------- CONFIGURATION ----------------
 st.set_page_config(
     page_title="IIIT Dharwad Scheduler",
     page_icon="📅",
