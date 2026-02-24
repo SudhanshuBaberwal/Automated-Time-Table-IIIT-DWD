@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import timetable  
 
+
 st.set_page_config(
     page_title="IIIT Dharwad Scheduler",
     page_icon="📅",
@@ -9,8 +10,11 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
+
+
 # ---------------- STATE MANAGEMENT ----------------
-# Use session state to keep the timetable visible after generation
+
+
 if 'timetable_generated' not in st.session_state:
     st.session_state.timetable_generated = False
 if 'generated_filename' not in st.session_state:
@@ -20,6 +24,7 @@ PREVIEW_CACHE = timetable.PREVIEW_CACHE
 generate_timetable = timetable.generate_timetable
 
 # ---------------- CUSTOM CSS (PROFESSIONAL THEME) ----------------
+
 st.markdown("""
 <style>
     /* 1. Global Reset & Fonts */
